@@ -1,0 +1,31 @@
+# Secrets — NEVER commit this
+backend/.env
+
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+
+# Generated runtime files (regenerated every time the app runs)
+backend/outputs/
+
+# Third-party tool — downloaded separately per README, not your code
+backend/rhubarb/
+
+# Large TTS voice model — downloaded separately per README
+backend/voices/
+
+# Large 3D avatar — see README, keep your own backup of this file!
+frontend/avatar.glb
+
+# Unused/leftover avatar exploration — remove if confirmed unused
+Larisa/
+
+# Blender backups
+*.blend1
+*.blend2
+*.blend
+
+# OS junk
+.DS_Store
+Thumbs.db
