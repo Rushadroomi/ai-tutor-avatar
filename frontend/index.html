@@ -368,29 +368,57 @@
     camera.lookAt(0, 0.6, 0);
 
     // ════════════════════════════════════════════
-    //  STUDIO LIGHTING
+    //  STUDIO LIGHTING (cinematic setup to highlight mesh details)
     // ════════════════════════════════════════════
-    const keyLight = new THREE.SpotLight(0xfff3d0, 2.2, 20, Math.PI * 0.18, 0.3);
+    const keyLight = new THREE.SpotLight(0xfff3d0, 3.8, 25, Math.PI * 0.18, 0.35);
     keyLight.position.set(-3.5, 5, 5);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.set(2048, 2048);
-    keyLight.shadow.bias = -0.0005;
+    keyLight.shadow.bias = -0.0003;
     scene.add(keyLight);
     scene.add(keyLight.target);
 
-    const fillLight = new THREE.DirectionalLight(0x99bbff, 0.55);
+    const fillLight = new THREE.DirectionalLight(0x99bbff, 0.85);
     fillLight.position.set(4, 1, 3);
     scene.add(fillLight);
 
-    const rimLight = new THREE.DirectionalLight(0x8899ff, 1.0);
+    const rimLight = new THREE.DirectionalLight(0xffffff, 2.8); // bright white rim highlights hair/edges
     rimLight.position.set(0.5, 4, -5);
     scene.add(rimLight);
 
-    scene.add(new THREE.AmbientLight(0x112244, 0.9));
+    scene.add(new THREE.AmbientLight(0x152244, 0.28)); // lowered from 0.9 to reveal depth/contours
 
-    const bounceLight = new THREE.PointLight(0xffddaa, 0.35, 5);
+    const bounceLight = new THREE.PointLight(0xffddaa, 0.75, 5);
     bounceLight.position.set(0, -1.8, 2.8);
     scene.add(bounceLight);
+
+    // ════════════════════════════════════════════
+    //  VIRTUAL HDRI ENVIRONMENT MAP (Sketchfab style PBR reflections)
+    // ════════════════════════════════════════════
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+    
+    const envScene = new THREE.Scene();
+    envScene.add(new THREE.HemisphereLight(0xffeedd, 0x112244, 2.2));
+    
+    // Colorful glowing panels/spheres to create realistic reflections in eyes and on skin
+    const sphereGeo = new THREE.SphereGeometry(3, 16, 16);
+    
+    const blueRef = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0x6688ff }));
+    blueRef.position.set(6, 6, -6);
+    envScene.add(blueRef);
+    
+    const orangeRef = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0xffccaa }));
+    orangeRef.position.set(-6, 4, 6);
+    envScene.add(orangeRef);
+    
+    const topWhiteRef = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    topWhiteRef.position.set(0, 10, 0);
+    envScene.add(topWhiteRef);
+    
+    const envTexture = pmremGenerator.fromScene(envScene, 0.04).texture;
+    scene.environment = envTexture;
+    pmremGenerator.dispose();
 
     // ════════════════════════════════════════════
     //  ENVIRONMENT
@@ -432,23 +460,29 @@
     // ════════════════════════════════════════════
     // Rhubarb → Oculus/ReadyPlayerMe viseme name map
     const VISEME_REMAP = {
-      X: 'viseme_sil', A: 'viseme_aa', B: 'viseme_PP', C: 'viseme_I',
-      D: 'viseme_E', E: 'viseme_O', F: 'viseme_U', G: 'viseme_FF', H: 'viseme_TH',
+      X: 'viseme_sil',
+      A: 'viseme_PP',   // Rhubarb A = closed mouth P, B, M
+      B: 'viseme_kk',   // Rhubarb B = slightly open consonants (K, S, T, etc.)
+      C: 'viseme_E',    // Rhubarb C = open mouth (EH, AE, etc.)
+      D: 'viseme_aa',   // Rhubarb D = wide open mouth (AA, etc.)
+      E: 'viseme_O',    // Rhubarb E = rounded mouth (AO, ER, etc.)
+      F: 'viseme_U',    // Rhubarb F = puckered lips (UW, OW, etc.)
+      G: 'viseme_FF',   // Rhubarb G = F, V
+      H: 'viseme_TH',   // Rhubarb H = L (tongue shape)
     };
 
     // Per-phoneme blend: Talking (jaw/mouth open) + Smile (lip spread)
-    // Values intentionally go ABOVE 1.0 — this over-drives the morph target
-    // past its sculpted maximum so the mouth opens dramatically wider.
+    // Used for head bone and neck animation, and secondary smoothing.
     const BLEND_TABLE = {
       X: { t: 0.00, s: 0.00 },   // silence
-      A: { t: 1.60, s: 0.20 },   // "father" — full wide open
-      B: { t: 0.00, s: 0.00 },   // "p/b/m"  — fully closed
-      C: { t: 0.70, s: 1.10 },   // "it"
-      D: { t: 0.95, s: 0.55 },   // "said"
-      E: { t: 1.35, s: 0.05 },   // "hot"    — wide open round
-      F: { t: 0.55, s: 0.00 },   // "too"
-      G: { t: 0.35, s: 0.10 },   // "f/v"
-      H: { t: 0.45, s: 0.20 },   // "th"
+      A: { t: 0.00, s: 0.00 },   // P/B/M — closed
+      B: { t: 0.30, s: 0.20 },   // consonants — slightly open
+      C: { t: 0.75, s: 0.45 },   // EH/AE — open
+      D: { t: 1.60, s: 0.10 },   // AA — wide open (overdrive head nod)
+      E: { t: 1.10, s: -0.10 },  // AO/ER — rounded
+      F: { t: 0.85, s: -0.30 },  // UW/OW — puckered
+      G: { t: 0.30, s: 0.10 },   // F/V — labiodental
+      H: { t: 0.45, s: 0.20 },   // L — tongue
     };
 
     class LipSyncEngine {
@@ -499,7 +533,7 @@
     const loader = new THREE.GLTFLoader();
 
     loader.load(
-      "avatar.glb",
+      "avatar.glb?t=" + Date.now(),
       (gltf) => {
         glbModel = gltf.scene;
 
@@ -547,18 +581,46 @@
           if (node.isSkinnedMesh) {
             node.castShadow = true;
             node.receiveShadow = true;
+
+            // Adjust materials to maximize sharpness and realism
+            const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+            const materials = Array.isArray(node.material) ? node.material : [node.material];
+            for (const mat of materials) {
+              if (mat) {
+                // Enable morph targets if the mesh has them
+                if (node.morphTargetDictionary && Object.keys(node.morphTargetDictionary).length > 0) {
+                  mat.morphTargets = true;
+                }
+
+                // Enable anisotropic filtering for maximum texture sharpness
+                if (mat.map) {
+                  mat.map.anisotropy = maxAnisotropy;
+                  mat.map.minFilter = THREE.LinearMipmapLinearFilter;
+                  mat.map.magFilter = THREE.LinearFilter;
+                }
+
+                // Fine-tune PBR properties to reveal texture depth and details (not plastic)
+                if (mat.isMeshStandardMaterial) {
+                  const mName = mat.name.toLowerCase();
+                  if (mName.includes('face') || mName.includes('lips') || mName.includes('body') || mName.includes('arms') || mName.includes('legs')) {
+                    mat.roughness = 0.65;  // skin roughness: soft diffuse lighting, not shiny plastic
+                    mat.metalness = 0.0;
+                  } else if (mName.includes('hair') || mName.includes('scalp')) {
+                    mat.roughness = 0.85;  // hair is rough
+                    mat.metalness = 0.05;
+                  } else if (mName.includes('sweater') || mName.includes('jeans')) {
+                    mat.roughness = 0.95;  // clothing fabric has high roughness
+                    mat.metalness = 0.0;
+                  }
+                }
+              }
+            }
+
             if (node.morphTargetDictionary && Object.keys(node.morphTargetDictionary).length > 0) {
               glbFaceMeshes.push(node);
               if (glbFaceMeshes.length === 1) {
                 console.log('✓ First morph-target mesh:', node.name,
                   '| keys:', Object.keys(node.morphTargetDictionary));
-              }
-              if (node.material) {
-                if (Array.isArray(node.material)) {
-                  node.material.forEach(mat => { mat.morphTargets = true; });
-                } else {
-                  node.material.morphTargets = true;
-                }
               }
             }
           }
